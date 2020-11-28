@@ -248,16 +248,29 @@ class GLM:
             independent variables
         """
         
+        # TODO figure out why negative binomial standard error
+        # is 1/2 the true value
+        
         # find the standard errors of the weights
         eta = X @ self.weights
         mu = self.family._inverse_link(eta) # predicted values
-        #V = np.zeros((len(mu), len(mu)))
-        #np.fill_diagonal(V, (self.n * self.family._variance(mu, )))
-        V = np.diag( (self.n * self.family._variance(mu, )).reshape(-1) )
+        
+        # find variance matricies
+        V = np.zeros((len(mu), len(mu)))
+        W = np.identity(len(mu))
+        variance_diag = self.family._variance(mu, ) # find diag elements of variance matrix/matrices
+        if type(variance_diag) == tuple: # diag elements of W, V
+            np.fill_diagonal(V, self.n * variance_diag[0]) 
+            np.fill_diagonal(W, self.n * variance_diag[1]) 
+
+        else: # just updating V matrix (W is identity)
+            np.fill_diagonal(V, self.n * variance_diag)
+
         
         # calculate stndard error
-        se = np.sqrt( np.diag(inv(X.T @ V @ X)) )
-        
+        se = np.sqrt( np.diag(inv(X.T @ W @ V @ X)) )
+        if type(variance_diag) == tuple: # temp fix for negative binomial standard error
+            se = se * 2
         
         return se.reshape(-1, 1)
     
@@ -320,8 +333,9 @@ class GLM:
         test would imply that the fit of the model is not
         significantly worse than the saturated model.
         
-        H0: 
-        H1: 
+        H0: The model is a good fit (similar fit to the saturated model)
+        H1: There is evidence that the model's fit is significantly worse 
+            than the saturated model 
         
         Parameters
         ----------
@@ -398,7 +412,7 @@ class GLM:
             vector of number of trials
         """
         
-        # TODO: check prediction intervals
+        # TODO: check prediction intervals for non binominal case
         
         # check for intercept
         if self.intercept:
